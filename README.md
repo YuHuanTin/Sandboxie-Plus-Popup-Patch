@@ -1,3 +1,19 @@
+### 1.18.8
+
+SandMan.exe version: 1.18.8 x64 windows
+
+`CSupportDialog::ShowDialog RVA: 0x1F8E10`
+
+```text
+48 89 5C 24 ?? 55 56 57 41 56 41 57 48 8D 6C 24 ?? 48 81 EC ?? ?? ?? ?? 44 8B F2
+```
+
+Patch bytes:
+
+```text
+B0 01 C3
+```
+
 ### 1.16.5
 
 SandMan.exe version: 1.16.5 x64 windows

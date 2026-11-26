@@ -154,8 +154,8 @@ std::vector<size_t> RVAs = {
 using bytes = std::vector<uint8_t>;
 
 std::vector<std::string> patterns {
-    // from 1.17.4
-    "48 89 5C 24 08 48 89 74 24 10 48 89 7C 24 18 55 41 54 41 55 41 56 41 57 48 8D 6C 24 D0 48 81 EC 30 01 00 00 48 8B 05 ?? ?? ?? ?? 48 33 C4 48 89 45 20 44 0F B6 E1 45 33 F6 44 89 74 24 48 45 32 ED F6 05 ?? ?? ?? ?? 01"
+    // SandMan 1.18.8 CSupportDialog::ShowDialog
+    "48 89 5C 24 ?? 55 56 57 41 56 41 57 48 8D 6C 24 ?? 48 81 EC ?? ?? ?? ?? 44 8B F2"
 };
 
 MEMORY_BASIC_INFORMATION GetCodeSegment() {
@@ -190,9 +190,11 @@ void PatchNew() {
                 ++i;
                 continue;
             }
-            if (pattern[i] == '?' && i + 1 < pattern.size() && pattern[i + 1] == '?') {
+            if (pattern[i] == '?') {
                 bytesPattern.emplace_back(true, 0);
-                i += 2; // skip "??"
+                ++i;
+                if (i < pattern.size() && pattern[i] == '?')
+                    ++i;
             } else {
                 bytesPattern.emplace_back(false, std::stoi(pattern.substr(i, 2), nullptr, 16));
                 i += 2;
@@ -219,7 +221,7 @@ void PatchNew() {
             MessageBox(nullptr, std::format("found {} patterns, expected 1", foundOffsets.size()).c_str(), "pattern", MB_OK);
         } else {
             size_t  patchAddr = reinterpret_cast<size_t>(info.BaseAddress) + foundOffsets.at(0);
-            uint8_t patch[]   = { 0xB0, 0x00, 0xC3, 0x90, 0x90 };
+            uint8_t patch[]   = { 0xB0, 0x01, 0xC3 };
             WriteProcessMemory(GetCurrentProcess(), reinterpret_cast<LPVOID>(patchAddr), patch, sizeof(patch), nullptr);
         }
     }

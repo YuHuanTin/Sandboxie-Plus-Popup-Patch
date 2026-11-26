@@ -1,0 +1,63 @@
+name: Build and release x64 DLL
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-2022
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up CMake 4
+        uses: jwlawson/actions-setup-cmake@v2
+        with:
+          cmake-version: "4.0.x"
+
+      - name: Install llvm-mingw
+        shell: pwsh
+        run: |
+          $release = Invoke-RestMethod https://api.github.com/repos/mstorsjo/llvm-mingw/releases/latest
+          $asset = $release.assets | Where-Object name -eq "llvm-mingw-$($release.tag_name)-ucrt-x86_64.zip"
+          if (-not $asset) {
+            throw "Could not find the llvm-mingw x86_64 UCRT release archive"
+          }
+          Invoke-WebRequest -Uri $asset.browser_download_url -OutFile llvm-mingw.zip
+          Expand-Archive -LiteralPath llvm-mingw.zip -DestinationPath "$env:RUNNER_TEMP/llvm-mingw"
+          $toolchain = Get-ChildItem "$env:RUNNER_TEMP/llvm-mingw" -Directory | Select-Object -First 1
+          "$(Join-Path $toolchain.FullName 'bin')" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          Remove-Item llvm-mingw.zip
+
+      - name: Configure with llvm-mingw
+        run: cmake -S . -B build -G Ninja -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build x64 DLL
+        run: cmake --build build --parallel
+
+      - name: Verify DLL architecture and exports
+        shell: pwsh
+        run: |
+          $dll = Resolve-Path build/version.dll
+          $inspection = & llvm-readobj --file-headers --coff-exports $dll
+          $machine = $inspection | Select-String "Format: COFF-x86-64"
+          if (-not $machine) {
+            throw "version.dll is not an x64 DLL"
+          }
+          $exports = $inspection | Select-String "GetFileVersionInfoA|VerQueryValueW"
+          if (-not $exports) {
+            throw "Expected version.dll exports were not found"
+          }
+          $inspection
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/version.dll
+          generate_release_notes: true
